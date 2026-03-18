@@ -349,13 +349,12 @@ exportWritebook.addEventListener("click", () => {
 
   const title = guideTitle.value || "How-To Guide";
 
-  // Build clean text content for Writebook page
-  let markdown = "";
-  steps.forEach((s, i) => {
-    markdown += `${i + 1}. **${s.description}**`;
-    if (s.notes) markdown += `\n   ${s.notes}`;
-    markdown += `\n`;
-  });
+  // Send full steps data (descriptions, notes, screenshots) to background
+  const stepsData = steps.map(s => ({
+    description: s.description,
+    notes: s.notes || "",
+    screenshot: s.screenshot || ""
+  }));
 
   exportWritebook.disabled = true;
   exportWritebook.classList.add("publishing");
@@ -367,7 +366,8 @@ exportWritebook.addEventListener("click", () => {
     bookId: bookId,
     bookSlug: bookSlug,
     title: title,
-    markdown: markdown
+    markdown: "",
+    steps: stepsData
   }, (response) => {
     exportWritebook.disabled = false;
     exportWritebook.classList.remove("publishing");

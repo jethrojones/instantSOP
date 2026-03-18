@@ -72,8 +72,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // ── Writebook: Publish page ─────────────────────────────────────
 
   if (msg.type === "publish-to-writebook") {
-    const { baseUrl, bookId, bookSlug, title, markdown } = msg;
-    handlePublishPage(baseUrl, bookId, bookSlug, title, markdown).then(sendResponse);
+    const { baseUrl, bookId, bookSlug, title, markdown, steps } = msg;
+    handlePublishPage(baseUrl, bookId, bookSlug, title, markdown, steps).then(sendResponse);
     return true; // async
   }
 });
@@ -199,14 +199,19 @@ function waitForTabLoad(tabId) {
   });
 }
 
-async function handlePublishPage(baseUrl, bookId, bookSlug, title, markdown) {
+async function handlePublishPage(baseUrl, bookId, bookSlug, title, markdown, steps) {
   try {
     const tab = await getOrCreateWritebookTab(baseUrl);
+
+    // Navigate to the book page so the CSRF token is available
+    await chrome.tabs.update(tab.id, { url: `${baseUrl}/${bookId}/${bookSlug}` });
+    await waitForTabLoad(tab.id);
+    await new Promise(r => setTimeout(r, 500));
 
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: createPageInWritebook,
-      args: [baseUrl, bookId, bookSlug, title, markdown]
+      args: [baseUrl, bookId, bookSlug, title, markdown, steps]
     });
 
     if (results && results[0] && results[0].result) {
@@ -264,49 +269,121 @@ function fetchBooksFromPage(baseUrl) {
   return Promise.resolve({ ok: true, books });
 }
 
-function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown) {
-  // This runs in the Writebook page context
-  // Writebook uses /<id>/<slug> for reading, but /books/<id>/pages for creating
-  const readableUrl = `${baseUrl}/${bookId}/${bookSlug}`;
-  const pagesEndpoint = `${baseUrl}/books/${bookId}/pages`;
+async function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown, steps) {
+  // This runs in the Writebook page context.
+  // Writebook uses /<id>/<slug> for reading, /books/<id>/pages for creating.
+  //
+  // Flow per step:
+  //   1. POST /books/:id/pages → blank page (get ID from turbo stream)
+  //   2. PATCH /books/:id/pages/:pageId → set title + body text
+  //   3. POST /books/:id/pictures → blank picture (get ID)
+  //   4. PATCH /books/:id/pictures/:picId → upload screenshot blob
 
-  // Fetch the readable book page to get the CSRF token
-  return fetch(readableUrl, { credentials: "same-origin" })
-    .then(res => {
-      if (!res.ok) throw new Error("Could not access book (status " + res.status + ")");
-      return res.text();
-    })
-    .then(html => {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      const csrfMeta = doc.querySelector('meta[name="csrf-token"]');
-      if (!csrfMeta) throw new Error("Not logged in — no CSRF token found");
-      return csrfMeta.content;
-    })
-    .then(csrfToken => {
-      // POST to create a new page
-      const formData = new FormData();
-      formData.append("page[body]", markdown);
-      formData.append("authenticity_token", csrfToken);
+  const booksPath = `${baseUrl}/books/${bookId}`;
+  const turboAccept = "text/vnd.turbo-stream.html, text/html, application/xhtml+xml";
 
-      return fetch(pagesEndpoint, {
+  // Get CSRF token from current page or fetch it
+  let csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+  if (!csrfToken) {
+    const res = await fetch(`${baseUrl}/${bookId}/${bookSlug}`, { credentials: "same-origin" });
+    if (!res.ok) throw new Error("Could not access book (status " + res.status + ")");
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    csrfToken = doc.querySelector('meta[name="csrf-token"]')?.content;
+    if (!csrfToken) return { ok: false, error: "Not logged in — no CSRF token found" };
+  }
+
+  const headers = { "X-CSRF-Token": csrfToken, "Accept": turboAccept };
+
+  function extractIdFromTurboStream(html, prefix) {
+    // Looks for id="leaf_123" or id="page_123" etc in the turbo stream response
+    const match = html.match(new RegExp(prefix + '_(\\d+)'));
+    return match ? match[1] : null;
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const parts = dataUrl.split(",");
+    const mime = parts[0].match(/:(.*?);/)[1];
+    const binary = atob(parts[1]);
+    const array = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+    return new Blob([array], { type: mime });
+  }
+
+  try {
+    let createdCount = 0;
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const stepNum = i + 1;
+      const stepTitle = title + " — Step " + stepNum;
+      const stepBody = "**" + step.description + "**" + (step.notes ? "\n\n" + step.notes : "");
+
+      // 1. Create blank page
+      const pageRes = await fetch(booksPath + "/pages", {
         method: "POST",
         credentials: "same-origin",
-        headers: {
-          "X-CSRF-Token": csrfToken,
-          "Accept": "text/html,application/xhtml+xml"
-        },
-        body: formData,
-        redirect: "follow"
+        headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ authenticity_token: csrfToken })
       });
-    })
-    .then(res => {
-      if (res.ok || res.redirected) {
-        // The response URL after redirect is the new page
-        const pageUrl = res.url || bookUrl;
-        return { ok: true, url: pageUrl };
+      if (!pageRes.ok) throw new Error("Failed to create page (status " + pageRes.status + ")");
+      const pageHtml = await pageRes.text();
+      const pageId = extractIdFromTurboStream(pageHtml, "leaf");
+      if (!pageId) throw new Error("Could not find new page ID");
+
+      // 2. Update page with title and body
+      // Need to find the actual page ID (not leaf ID) — it's in the form action
+      const pageIdMatch = pageHtml.match(/\/pages\/(\d+)/);
+      const actualPageId = pageIdMatch ? pageIdMatch[1] : pageId;
+
+      await fetch(booksPath + "/pages/" + actualPageId, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          authenticity_token: csrfToken,
+          "page[body]": stepBody,
+          "leaf[title]": stepTitle
+        })
+      });
+
+      // 3. Create blank picture
+      if (step.screenshot) {
+        const picRes = await fetch(booksPath + "/pictures", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ authenticity_token: csrfToken })
+        });
+        if (picRes.ok) {
+          const picHtml = await picRes.text();
+          const picIdMatch = picHtml.match(/\/pictures\/(\d+)/);
+          const picId = picIdMatch ? picIdMatch[1] : null;
+
+          if (picId) {
+            // 4. Upload screenshot to picture
+            const blob = dataUrlToBlob(step.screenshot);
+            const formData = new FormData();
+            formData.append("authenticity_token", csrfToken);
+            formData.append("picture[image]", blob, "step-" + stepNum + ".png");
+            formData.append("picture[caption]", step.description);
+
+            await fetch(booksPath + "/pictures/" + picId, {
+              method: "PATCH",
+              credentials: "same-origin",
+              headers: { "X-CSRF-Token": csrfToken, "Accept": turboAccept },
+              body: formData
+            });
+          }
+        }
       }
-      throw new Error("Failed to create page (status " + res.status + ")");
-    })
-    .catch(err => ({ ok: false, error: err.message }));
+
+      createdCount++;
+    }
+
+    const bookUrl = baseUrl + "/" + bookId + "/" + bookSlug;
+    return { ok: true, url: bookUrl, count: createdCount };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 }
