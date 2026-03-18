@@ -255,7 +255,7 @@ writebookToggle.addEventListener("click", () => {
 });
 
 // Load saved settings
-chrome.storage.sync.get(["writebookUrl", "writebookBookId", "writebookBookTitle"], (data) => {
+chrome.storage.sync.get(["writebookUrl", "writebookBookId", "writebookBookSlug", "writebookBookTitle"], (data) => {
   if (data.writebookUrl) {
     writebookUrl.value = data.writebookUrl;
     writebookBaseUrl = data.writebookUrl;
@@ -310,6 +310,7 @@ connectBtn.addEventListener("click", () => {
     response.books.forEach(book => {
       const opt = document.createElement("option");
       opt.value = book.id;
+      opt.dataset.slug = book.slug;
       opt.textContent = book.title;
       bookSelect.appendChild(opt);
     });
@@ -325,11 +326,14 @@ connectBtn.addEventListener("click", () => {
 // Save book selection
 bookSelect.addEventListener("change", () => {
   const bookId = bookSelect.value;
-  const bookTitle = bookSelect.options[bookSelect.selectedIndex]?.textContent || "";
+  const selectedOpt = bookSelect.options[bookSelect.selectedIndex];
+  const bookTitle = selectedOpt?.textContent || "";
+  const bookSlug = selectedOpt?.dataset.slug || "";
   writebookConnected = !!bookId;
 
   chrome.storage.sync.set({
     writebookBookId: bookId,
+    writebookBookSlug: bookSlug,
     writebookBookTitle: bookTitle
   });
 
@@ -340,6 +344,7 @@ bookSelect.addEventListener("change", () => {
 // Publish to Writebook
 exportWritebook.addEventListener("click", () => {
   const bookId = bookSelect.value;
+  const bookSlug = bookSelect.options[bookSelect.selectedIndex]?.dataset.slug || "";
   if (!bookId || steps.length === 0) return;
 
   const title = guideTitle.value || "How-To Guide";
@@ -360,6 +365,7 @@ exportWritebook.addEventListener("click", () => {
     type: "publish-to-writebook",
     baseUrl: writebookBaseUrl,
     bookId: bookId,
+    bookSlug: bookSlug,
     title: title,
     markdown: markdown
   }, (response) => {

@@ -72,8 +72,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // ── Writebook: Publish page ─────────────────────────────────────
 
   if (msg.type === "publish-to-writebook") {
-    const { baseUrl, bookId, title, markdown } = msg;
-    handlePublishPage(baseUrl, bookId, title, markdown).then(sendResponse);
+    const { baseUrl, bookId, bookSlug, title, markdown } = msg;
+    handlePublishPage(baseUrl, bookId, bookSlug, title, markdown).then(sendResponse);
     return true; // async
   }
 });
@@ -199,14 +199,14 @@ function waitForTabLoad(tabId) {
   });
 }
 
-async function handlePublishPage(baseUrl, bookId, title, markdown) {
+async function handlePublishPage(baseUrl, bookId, bookSlug, title, markdown) {
   try {
     const tab = await getOrCreateWritebookTab(baseUrl);
 
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: createPageInWritebook,
-      args: [baseUrl, bookId, title, markdown]
+      args: [baseUrl, bookId, bookSlug, title, markdown]
     });
 
     if (results && results[0] && results[0].result) {
@@ -238,17 +238,18 @@ function fetchBooksFromPage(baseUrl) {
     if (!link) return;
 
     const href = link.getAttribute("href") || "";
-    const match = href.match(/^\/(\d+)\//);
+    const match = href.match(/^\/(\d+)\/(.+)/);
     if (!match) return;
 
     const id = match[1];
+    const slug = match[2];
 
     // Get title from the h2 inside the figure
     const h2 = fig.querySelector("h2");
     const titleSpan = fig.querySelector(".book__title");
     const title = titleSpan?.textContent.trim() || h2?.textContent.trim() || `Book ${id}`;
 
-    books.push({ id, title });
+    books.push({ id, slug, title });
   });
 
   if (books.length === 0) {
@@ -263,12 +264,14 @@ function fetchBooksFromPage(baseUrl) {
   return Promise.resolve({ ok: true, books });
 }
 
-function createPageInWritebook(baseUrl, bookId, title, markdown) {
+function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown) {
   // This runs in the Writebook page context
-  const bookUrl = `${baseUrl}/books/${bookId}`;
+  // Writebook uses /<id>/<slug> for reading, but /books/<id>/pages for creating
+  const readableUrl = `${baseUrl}/${bookId}/${bookSlug}`;
+  const pagesEndpoint = `${baseUrl}/books/${bookId}/pages`;
 
-  // First fetch the book page to get the CSRF token
-  return fetch(bookUrl, { credentials: "same-origin" })
+  // Fetch the readable book page to get the CSRF token
+  return fetch(readableUrl, { credentials: "same-origin" })
     .then(res => {
       if (!res.ok) throw new Error("Could not access book (status " + res.status + ")");
       return res.text();
@@ -286,7 +289,7 @@ function createPageInWritebook(baseUrl, bookId, title, markdown) {
       formData.append("page[body]", markdown);
       formData.append("authenticity_token", csrfToken);
 
-      return fetch(`${bookUrl}/pages`, {
+      return fetch(pagesEndpoint, {
         method: "POST",
         credentials: "same-origin",
         headers: {
