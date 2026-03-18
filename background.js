@@ -271,12 +271,18 @@ function fetchBooksFromPage(baseUrl) {
 
 async function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown, steps) {
   // This runs in the Writebook page context.
-  // Creates ONE text page (all steps) then uploads each screenshot as a Picture leaf.
+  // Creates ONE page with all steps as text + inline screenshot images.
+  //
+  // Flow:
+  //   1. Create blank page → get page ID
+  //   2. Navigate to page edit to get the upload URL from <house-md>
+  //   3. Upload each screenshot → get /u/filename.png URLs
+  //   4. Build page body with ## headings, notes, and ![](imageUrl)
+  //   5. PATCH page with the full body
 
   const booksPath = `${baseUrl}/books/${bookId}`;
   const turboAccept = "text/vnd.turbo-stream.html, text/html, application/xhtml+xml";
 
-  // Get CSRF token from current page
   let csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
   if (!csrfToken) {
     const res = await fetch(`${baseUrl}/${bookId}/${bookSlug}`, { credentials: "same-origin" });
@@ -299,13 +305,6 @@ async function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown,
   }
 
   try {
-    // Build the full SOP body — all steps in one page
-    let body = "";
-    steps.forEach((step, i) => {
-      body += `## Step ${i + 1}: ${step.description}\n\n`;
-      if (step.notes) body += `${step.notes}\n\n`;
-    });
-
     // 1. Create blank page
     const pageRes = await fetch(booksPath + "/pages", {
       method: "POST",
@@ -320,52 +319,64 @@ async function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown,
     if (!pageIdMatch) return { ok: false, error: "Could not find new page ID" };
     const pageId = pageIdMatch[1];
 
-    // 2. Update page with title and full SOP body
+    // 2. Fetch the edit page to get the upload URL from <house-md data-uploads-url="...">
+    const editRes = await fetch(booksPath + "/pages/" + pageId + "/edit", { credentials: "same-origin" });
+    if (!editRes.ok) return { ok: false, error: "Could not open page editor (status " + editRes.status + ")" };
+    const editHtml = await editRes.text();
+    const editDoc = new DOMParser().parseFromString(editHtml, "text/html");
+    const uploadsUrl = editDoc.querySelector("house-md")?.getAttribute("data-uploads-url");
+
+    // Also grab fresh CSRF token from edit page
+    const freshToken = editDoc.querySelector('meta[name="csrf-token"]')?.content || csrfToken;
+
+    // 3. Upload each screenshot and collect URLs
+    const imageUrls = [];
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      if (!step.screenshot || !uploadsUrl) {
+        imageUrls.push(null);
+        continue;
+      }
+
+      const blob = dataUrlToBlob(step.screenshot);
+      const formData = new FormData();
+      formData.append("file", blob, "step-" + (i + 1) + ".png");
+
+      const uploadRes = await fetch(uploadsUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRF-Token": freshToken },
+        body: formData
+      });
+
+      if (uploadRes.ok) {
+        const uploadData = await uploadRes.json();
+        imageUrls.push(uploadData.fileUrl || null);
+      } else {
+        imageUrls.push(null);
+      }
+    }
+
+    // 4. Build page body with steps + inline images
+    let body = "";
+    steps.forEach((step, i) => {
+      body += `## Step ${i + 1}: ${step.description}\n\n`;
+      if (step.notes) body += `${step.notes}\n\n`;
+      if (imageUrls[i]) body += `![Step ${i + 1}](${imageUrls[i]})\n\n`;
+    });
+
+    // 5. Save page with title and body
     const updateRes = await fetch(booksPath + "/pages/" + pageId, {
       method: "PATCH",
       credentials: "same-origin",
       headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        authenticity_token: csrfToken,
+        authenticity_token: freshToken,
         "page[body]": body,
         "leaf[title]": title
       })
     });
-    if (!updateRes.ok) return { ok: false, error: "Failed to update page (status " + updateRes.status + ")" };
-
-    // 3. Upload each screenshot as a Picture leaf
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      if (!step.screenshot) continue;
-
-      // Create blank picture
-      const picRes = await fetch(booksPath + "/pictures", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ authenticity_token: csrfToken })
-      });
-      if (!picRes.ok) continue;
-
-      const picHtml = await picRes.text();
-      const picIdMatch = picHtml.match(/\/pictures\/(\d+)/);
-      if (!picIdMatch) continue;
-      const picId = picIdMatch[1];
-
-      // Upload the screenshot image
-      const blob = dataUrlToBlob(step.screenshot);
-      const formData = new FormData();
-      formData.append("authenticity_token", csrfToken);
-      formData.append("picture[image]", blob, "step-" + (i + 1) + ".png");
-      formData.append("picture[caption]", "Step " + (i + 1) + ": " + step.description);
-
-      await fetch(booksPath + "/pictures/" + picId, {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "X-CSRF-Token": csrfToken, "Accept": turboAccept },
-        body: formData
-      });
-    }
+    if (!updateRes.ok) return { ok: false, error: "Failed to save page (status " + updateRes.status + ")" };
 
     const bookUrl = `${baseUrl}/${bookId}/${bookSlug}`;
     return { ok: true, url: bookUrl };
