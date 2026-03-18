@@ -36,6 +36,11 @@ function startRecording() {
   chrome.runtime.sendMessage({ type: "start-recording" }, (response) => {
     if (chrome.runtime.lastError) {
       showToast("Could not start — try refreshing the page");
+      console.error("InstantSOP start error:", chrome.runtime.lastError.message);
+      return;
+    }
+    if (response && !response.ok && response.error) {
+      showToast(response.error);
       return;
     }
     recording = true;

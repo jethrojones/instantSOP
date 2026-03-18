@@ -4,6 +4,12 @@
  * describes the clicked element, draws a highlight, and notifies background.
  */
 
+// Guard against duplicate injection
+if (window.__instantSOPLoaded) {
+  // Already loaded — skip re-initialization
+} else {
+window.__instantSOPLoaded = true;
+
 let isRecording = false;
 let stepCounter = 0;
 
@@ -201,3 +207,5 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ recording: isRecording, steps: stepCounter });
   }
 });
+
+} // end duplicate-injection guard

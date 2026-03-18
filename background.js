@@ -44,33 +44,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Side panel requests to start recording
   if (msg.type === "start-recording") {
     recording = true;
-    // Forward to the active tab's content script
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: "start-recording" }, (response) => {
-          if (chrome.runtime.lastError) {
-            console.error("Could not reach content script:", chrome.runtime.lastError.message);
-          }
-          sendResponse(response || { ok: false });
-        });
-      }
-    });
+    handleStartRecording().then(sendResponse);
     return true; // async sendResponse
   }
 
   // Side panel requests to stop recording
   if (msg.type === "stop-recording") {
     recording = false;
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: "stop-recording" }, (response) => {
-          if (chrome.runtime.lastError) {
-            console.error("Could not reach content script:", chrome.runtime.lastError.message);
-          }
-          sendResponse(response || { ok: false });
-        });
-      }
-    });
+    handleStopRecording().then(sendResponse);
     return true; // async sendResponse
   }
 
@@ -96,6 +77,63 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true; // async
   }
 });
+
+// ── Recording Helpers ──────────────────────────────────────────────
+
+async function handleStartRecording() {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab) return { ok: false, error: "No active tab found" };
+
+  // Skip chrome:// and other restricted pages
+  if (!tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://") || tab.url.startsWith("about:")) {
+    return { ok: false, error: "Cannot record on this page — navigate to a website first" };
+  }
+
+  // Always inject the content script to ensure it's present.
+  // If it's already there, the duplicate just re-runs (listeners are guarded by the recording flag).
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["content.js"]
+    });
+  } catch (err) {
+    console.error("Failed to inject content script:", err);
+    return { ok: false, error: "Cannot access this page — try refreshing" };
+  }
+
+  // Small delay to let the script initialize
+  await new Promise(r => setTimeout(r, 100));
+
+  // Now send the start message
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tab.id, { type: "start-recording" }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error("Content script error:", chrome.runtime.lastError.message);
+        resolve({ ok: false, error: chrome.runtime.lastError.message });
+      } else {
+        resolve(response || { ok: true });
+      }
+    });
+  });
+}
+
+async function handleStopRecording() {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
+  if (!tab) return { ok: false };
+
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tab.id, { type: "stop-recording" }, (response) => {
+      if (chrome.runtime.lastError) {
+        // Content script gone — that's fine, recording is stopped anyway
+        resolve({ ok: true });
+      } else {
+        resolve(response || { ok: true });
+      }
+    });
+  });
+}
 
 // ── Writebook Helpers ──────────────────────────────────────────────
 
