@@ -165,6 +165,15 @@ async function handleFetchBooks(baseUrl) {
   try {
     const tab = await getOrCreateWritebookTab(baseUrl);
 
+    // Make sure we're on the homepage so we can read the book list
+    const tabInfo = await chrome.tabs.get(tab.id);
+    const tabUrl = tabInfo.url || "";
+    const isHomepage = tabUrl === baseUrl || tabUrl === baseUrl + "/" || tabUrl === baseUrl + "/#";
+    if (!isHomepage) {
+      await chrome.tabs.update(tab.id, { url: baseUrl });
+      await waitForTabLoad(tab.id);
+    }
+
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: fetchBooksFromPage,
@@ -178,6 +187,18 @@ async function handleFetchBooks(baseUrl) {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+}
+
+function waitForTabLoad(tabId) {
+  return new Promise((resolve) => {
+    function listener(id, info) {
+      if (id === tabId && info.status === "complete") {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    }
+    chrome.tabs.onUpdated.addListener(listener);
+  });
 }
 
 async function handlePublishPage(baseUrl, bookId, title, markdown) {
@@ -202,42 +223,46 @@ async function handlePublishPage(baseUrl, bookId, title, markdown) {
 // ── Functions injected into Writebook tab context ──────────────────
 
 function fetchBooksFromPage(baseUrl) {
-  // This runs in the Writebook page context — has access to cookies
-  return fetch(baseUrl + "/", { credentials: "same-origin" })
-    .then(res => {
-      if (!res.ok) throw new Error("Not logged in or Writebook not reachable");
-      return res.text();
-    })
-    .then(html => {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
+  // This runs in the Writebook page context — has access to cookies.
+  // Writebook's homepage shows books as <figure class="library__book"> elements.
+  // Each book has a link like /<id>/<slug> and an <h2> with the title.
 
-      // Writebook shows books as links: /books/:id
-      const books = [];
-      const links = doc.querySelectorAll('a[href*="/books/"]');
-      const seen = new Set();
+  const books = [];
+  const figures = document.querySelectorAll("figure.library__book");
 
-      links.forEach(link => {
-        const match = link.href.match(/\/books\/(\d+)/);
-        if (match && !seen.has(match[1])) {
-          seen.add(match[1]);
-          // Get the book title from the link text or nearby heading
-          const title = link.textContent.trim() ||
-                        link.querySelector("h2, h3, span")?.textContent.trim() ||
-                        `Book ${match[1]}`;
-          if (title && title.length > 0) {
-            books.push({ id: match[1], title: title });
-          }
-        }
-      });
+  figures.forEach(fig => {
+    // Skip the "create new book" placeholder
+    if (fig.querySelector(".library__book--empty")) return;
+    if (fig.querySelector('a[href="/books/new"]')) return;
 
-      if (books.length === 0) {
-        return { ok: false, error: "No books found. Make sure you are logged into Writebook." };
-      }
+    // Find the book link: /<id>/<slug>
+    const link = fig.querySelector("a.bookmark__link");
+    if (!link) return;
 
-      return { ok: true, books: books };
-    })
-    .catch(err => ({ ok: false, error: err.message }));
+    const href = link.getAttribute("href") || "";
+    const match = href.match(/^\/(\d+)\//);
+    if (!match) return;
+
+    const id = match[1];
+
+    // Get title from the h2 inside the figure
+    const h2 = fig.querySelector("h2");
+    const titleSpan = fig.querySelector(".book__title");
+    const title = titleSpan?.textContent.trim() || h2?.textContent.trim() || `Book ${id}`;
+
+    books.push({ id, title });
+  });
+
+  if (books.length === 0) {
+    // Fallback: maybe we're not on the homepage or not logged in.
+    // Check if there's a login form
+    if (document.querySelector('form[action*="session"]')) {
+      return Promise.resolve({ ok: false, error: "Not logged in — please log into Writebook first." });
+    }
+    return Promise.resolve({ ok: false, error: "No books found. Make sure you are logged into Writebook." });
+  }
+
+  return Promise.resolve({ ok: true, books });
 }
 
 function createPageInWritebook(baseUrl, bookId, title, markdown) {
