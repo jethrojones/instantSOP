@@ -157,22 +157,32 @@ clearBtn.addEventListener("click", () => {
 
 exportMd.addEventListener("click", () => {
   const title = guideTitle.value || "How-To Guide";
+  const slug = slugify(title);
   let md = `# ${title}\n\n`;
 
   steps.forEach((s, i) => {
     const num = i + 1;
+    const imgFilename = `${slug}-step-${num}.png`;
     md += `## Step ${num}\n\n`;
     md += `**${s.description}**\n\n`;
     if (s.notes) md += `${s.notes}\n\n`;
+    md += `![Step ${num}](${imgFilename})\n\n`;
   });
 
-  navigator.clipboard.writeText(md).then(() => {
-    showToast("Markdown copied to clipboard");
-  }).catch(() => {
-    // Fallback: download as file
-    downloadFile(`${slugify(title)}.md`, md, "text/markdown");
-    showToast("Markdown downloaded");
+  // Download the markdown file
+  downloadFile(`${slug}.md`, md, "text/markdown");
+
+  // Download each screenshot as a PNG
+  steps.forEach((s, i) => {
+    const imgFilename = `${slug}-step-${i + 1}.png`;
+    chrome.downloads.download({
+      url: s.screenshot,
+      filename: imgFilename,
+      saveAs: false
+    });
   });
+
+  showToast(`Downloaded guide + ${steps.length} screenshots`);
 });
 
 // ── Export: HTML ─────────────────────────────────────────────────────
