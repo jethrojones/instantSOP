@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InstantSOP</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+
+  <div class="header">
+    <h1>InstantSOP</h1>
+    <p>Click-by-click how-to guide generator</p>
+    <input type="text" class="guide-title-input" id="guideTitle" placeholder="Guide title (e.g., How to Create an Invoice)">
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-record" id="recordBtn">
+      <span id="recordIcon">&#9679;</span>
+      <span id="recordLabel">Start Recording</span>
+    </button>
+    <button class="btn btn-secondary" id="clearBtn" title="Clear all steps" disabled>
+      &#128465;
+    </button>
+  </div>
+
+  <div class="step-counter" id="stepCounter">
+    <span><span class="count" id="stepCount">0</span> steps captured</span>
+    <span id="pageInfo"></span>
+  </div>
+
+  <div class="steps" id="stepsList">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">&#128247;</div>
+      <h3>No steps yet</h3>
+      <p>Click "Start Recording" then interact with any page. Each click captures a screenshot and description automatically.</p>
+    </div>
+  </div>
+
+  <div class="export-bar">
+    <button class="btn btn-export" id="exportMd" disabled>Copy Markdown</button>
+    <button class="btn btn-export" id="exportHtml" disabled>Download HTML</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

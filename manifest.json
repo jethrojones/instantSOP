@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "InstantSOP",
+  "version": "1.0.0",
+  "description": "Automatically generate step-by-step how-to guides by recording your clicks",
+  "permissions": [
+    "activeTab",
+    "sidePanel",
+    "scripting"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "InstantSOP — Record a How-To Guide"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

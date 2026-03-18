@@ -1,0 +1,360 @@
+/* InstantSOP Side Panel — Brand: #4FE1D7 teal, #6357A5 purple */
+
+:root {
+  --teal: #4FE1D7;
+  --purple: #6357A5;
+  --purple-light: #7B71B5;
+  --purple-dark: #4A4080;
+  --teal-light: #7AEEE6;
+  --teal-dark: #3BC4BB;
+  --bg: #FAFAFA;
+  --card-bg: #FFFFFF;
+  --text: #1E1E2E;
+  --text-muted: #6B7280;
+  --border: #E5E7EB;
+  --radius: 10px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+
+.header {
+  background: linear-gradient(135deg, var(--purple) 0%, var(--purple-dark) 100%);
+  color: white;
+  padding: 16px;
+  flex-shrink: 0;
+}
+
+.header h1 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  margin-bottom: 4px;
+}
+
+.header p {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.guide-title-input {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.12);
+  color: white;
+  font-size: 13px;
+  outline: none;
+}
+
+.guide-title-input::placeholder {
+  color: rgba(255,255,255,0.5);
+}
+
+.guide-title-input:focus {
+  border-color: var(--teal);
+  background: rgba(255,255,255,0.18);
+}
+
+/* ── Controls ───────────────────────────────────────────────────── */
+
+.controls {
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-record {
+  background: var(--teal);
+  color: var(--purple-dark);
+}
+
+.btn-record:hover {
+  background: var(--teal-dark);
+}
+
+.btn-record.recording {
+  background: #EF4444;
+  color: white;
+  animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+.btn-record.recording:hover {
+  background: #DC2626;
+}
+
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.btn-secondary {
+  background: var(--card-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  flex: 0 0 auto;
+  padding: 10px;
+}
+
+.btn-secondary:hover {
+  background: #F3F4F6;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Step Counter ───────────────────────────────────────────────── */
+
+.step-counter {
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.step-counter .count {
+  font-weight: 600;
+  color: var(--purple);
+}
+
+/* ── Steps List ─────────────────────────────────────────────────── */
+
+.steps {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.step-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+
+.step-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: #F9FAFB;
+}
+
+.step-number {
+  background: var(--purple);
+  color: white;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.step-description {
+  font-size: 12px;
+  font-weight: 500;
+  flex: 1;
+  line-height: 1.4;
+}
+
+.step-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.step-screenshot {
+  width: 100%;
+  display: block;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+
+.step-screenshot.expanded {
+  max-height: none;
+}
+
+.step-notes {
+  width: 100%;
+  border: none;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  resize: vertical;
+  min-height: 32px;
+  outline: none;
+  background: transparent;
+}
+
+.step-notes::placeholder {
+  color: #C4C9D2;
+}
+
+.step-notes:focus {
+  background: #F0F9FF;
+}
+
+.step-delete {
+  background: none;
+  border: none;
+  color: #C4C9D2;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.step-delete:hover {
+  color: #EF4444;
+  background: #FEF2F2;
+}
+
+/* ── Empty State ────────────────────────────────────────────────── */
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+}
+
+.empty-state .icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.empty-state h3 {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.empty-state p {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ── Export Bar ──────────────────────────────────────────────────── */
+
+.export-bar {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  background: var(--card-bg);
+}
+
+.export-bar .btn {
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+.btn-export {
+  background: var(--purple);
+  color: white;
+}
+
+.btn-export:hover {
+  background: var(--purple-light);
+}
+
+.btn-export:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Toast Notification ─────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--purple-dark);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0;
+  transition: all 0.2s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────── */
+
+.steps::-webkit-scrollbar {
+  width: 5px;
+}
+
+.steps::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.steps::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 3px;
+}
+
+.steps::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
