@@ -165,14 +165,12 @@ async function handleFetchBooks(baseUrl) {
   try {
     const tab = await getOrCreateWritebookTab(baseUrl);
 
-    // Make sure we're on the homepage so we can read the book list
-    const tabInfo = await chrome.tabs.get(tab.id);
-    const tabUrl = tabInfo.url || "";
-    const isHomepage = tabUrl === baseUrl || tabUrl === baseUrl + "/" || tabUrl === baseUrl + "/#";
-    if (!isHomepage) {
-      await chrome.tabs.update(tab.id, { url: baseUrl });
-      await waitForTabLoad(tab.id);
-    }
+    // Always navigate to the homepage to ensure we can read the book list
+    await chrome.tabs.update(tab.id, { url: baseUrl + "/" });
+    await waitForTabLoad(tab.id);
+
+    // Small extra delay for DOM to settle
+    await new Promise(r => setTimeout(r, 500));
 
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
