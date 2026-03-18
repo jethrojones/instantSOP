@@ -271,7 +271,7 @@ function fetchBooksFromPage(baseUrl) {
 
 async function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown, steps) {
   // This runs in the Writebook page context.
-  // Creates ONE page per SOP with all steps as the body text.
+  // Creates ONE text page (all steps) then uploads each screenshot as a Picture leaf.
 
   const booksPath = `${baseUrl}/books/${bookId}`;
   const turboAccept = "text/vnd.turbo-stream.html, text/html, application/xhtml+xml";
@@ -289,11 +289,20 @@ async function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown,
 
   const headers = { "X-CSRF-Token": csrfToken, "Accept": turboAccept };
 
+  function dataUrlToBlob(dataUrl) {
+    const parts = dataUrl.split(",");
+    const mime = parts[0].match(/:(.*?);/)[1];
+    const binary = atob(parts[1]);
+    const array = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+    return new Blob([array], { type: mime });
+  }
+
   try {
     // Build the full SOP body — all steps in one page
     let body = "";
     steps.forEach((step, i) => {
-      body += `# Step ${i + 1}: ${step.description}\n\n`;
+      body += `## Step ${i + 1}: ${step.description}\n\n`;
       if (step.notes) body += `${step.notes}\n\n`;
     });
 
@@ -323,6 +332,40 @@ async function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown,
       })
     });
     if (!updateRes.ok) return { ok: false, error: "Failed to update page (status " + updateRes.status + ")" };
+
+    // 3. Upload each screenshot as a Picture leaf
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      if (!step.screenshot) continue;
+
+      // Create blank picture
+      const picRes = await fetch(booksPath + "/pictures", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ authenticity_token: csrfToken })
+      });
+      if (!picRes.ok) continue;
+
+      const picHtml = await picRes.text();
+      const picIdMatch = picHtml.match(/\/pictures\/(\d+)/);
+      if (!picIdMatch) continue;
+      const picId = picIdMatch[1];
+
+      // Upload the screenshot image
+      const blob = dataUrlToBlob(step.screenshot);
+      const formData = new FormData();
+      formData.append("authenticity_token", csrfToken);
+      formData.append("picture[image]", blob, "step-" + (i + 1) + ".png");
+      formData.append("picture[caption]", "Step " + (i + 1) + ": " + step.description);
+
+      await fetch(booksPath + "/pictures/" + picId, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "X-CSRF-Token": csrfToken, "Accept": turboAccept },
+        body: formData
+      });
+    }
 
     const bookUrl = `${baseUrl}/${bookId}/${bookSlug}`;
     return { ok: true, url: bookUrl };
