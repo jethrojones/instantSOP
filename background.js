@@ -293,7 +293,7 @@ async function createPageInWritebook(baseUrl, bookId, bookSlug, title, markdown,
     // Build the full SOP body — all steps in one page
     let body = "";
     steps.forEach((step, i) => {
-      body += `**Step ${i + 1}: ${step.description}**\n\n`;
+      body += `# Step ${i + 1}: ${step.description}\n\n`;
       if (step.notes) body += `${step.notes}\n\n`;
     });
 
