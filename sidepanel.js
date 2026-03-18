@@ -158,15 +158,12 @@ clearBtn.addEventListener("click", () => {
 exportMd.addEventListener("click", () => {
   const title = guideTitle.value || "How-To Guide";
   let md = `# ${title}\n\n`;
-  md += `*Generated with InstantSOP*\n\n---\n\n`;
 
   steps.forEach((s, i) => {
     const num = i + 1;
     md += `## Step ${num}\n\n`;
     md += `**${s.description}**\n\n`;
     if (s.notes) md += `${s.notes}\n\n`;
-    md += `![Step ${num}](${s.screenshot})\n\n`;
-    md += `---\n\n`;
   });
 
   navigator.clipboard.writeText(md).then(() => {
@@ -337,13 +334,12 @@ exportWritebook.addEventListener("click", () => {
 
   const title = guideTitle.value || "How-To Guide";
 
-  // Build markdown content for the page
-  let markdown = `# ${title}\n\n`;
+  // Build clean text content for Writebook page
+  let markdown = "";
   steps.forEach((s, i) => {
-    markdown += `## Step ${i + 1}\n\n`;
-    markdown += `**${s.description}**\n\n`;
-    if (s.notes) markdown += `${s.notes}\n\n`;
-    markdown += `---\n\n`;
+    markdown += `${i + 1}. **${s.description}**`;
+    if (s.notes) markdown += `\n   ${s.notes}`;
+    markdown += `\n`;
   });
 
   exportWritebook.disabled = true;
