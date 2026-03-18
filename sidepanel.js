@@ -86,6 +86,9 @@ function updateUI() {
     const last = steps[steps.length - 1];
     pageInfo.textContent = last.pageTitle ? last.pageTitle.substring(0, 30) : "";
   }
+
+  // Update Writebook button state if available
+  if (typeof updateWritebookButton === "function") updateWritebookButton();
 }
 
 function renderStep(data, num) {
@@ -215,6 +218,184 @@ exportHtml.addEventListener("click", () => {
   downloadFile(`${slugify(title)}.html`, html, "text/html");
   showToast("HTML guide downloaded");
 });
+
+// ── Writebook Integration ───────────────────────────────────────────
+
+const writebookToggle = document.getElementById("writebookToggle");
+const writebookSettings = document.getElementById("writebookSettings");
+const writebookStatus = document.getElementById("writebookStatus");
+const toggleArrow = document.getElementById("toggleArrow");
+const writebookUrl = document.getElementById("writebookUrl");
+const connectBtn = document.getElementById("connectBtn");
+const bookSelectRow = document.getElementById("bookSelectRow");
+const bookSelect = document.getElementById("bookSelect");
+const writebookMessage = document.getElementById("writebookMessage");
+const exportWritebook = document.getElementById("exportWritebook");
+
+let writebookConnected = false;
+let writebookBaseUrl = "";
+
+// Toggle settings visibility
+writebookToggle.addEventListener("click", () => {
+  const open = writebookSettings.style.display !== "none";
+  writebookSettings.style.display = open ? "none" : "block";
+  toggleArrow.classList.toggle("open", !open);
+});
+
+// Load saved settings
+chrome.storage.sync.get(["writebookUrl", "writebookBookId", "writebookBookTitle"], (data) => {
+  if (data.writebookUrl) {
+    writebookUrl.value = data.writebookUrl;
+    writebookBaseUrl = data.writebookUrl;
+  }
+  if (data.writebookBookId) {
+    // Mark as connected with saved book
+    writebookConnected = true;
+    updateWritebookStatus(true, data.writebookBookTitle || `Book #${data.writebookBookId}`);
+    // Add saved book as option
+    const opt = document.createElement("option");
+    opt.value = data.writebookBookId;
+    opt.textContent = data.writebookBookTitle || `Book #${data.writebookBookId}`;
+    opt.selected = true;
+    bookSelect.appendChild(opt);
+    bookSelectRow.style.display = "flex";
+    updateWritebookButton();
+  }
+});
+
+// Connect to Writebook
+connectBtn.addEventListener("click", () => {
+  const url = writebookUrl.value.trim().replace(/\/+$/, "");
+  if (!url) {
+    setWritebookMessage("Please enter your Writebook URL", "error");
+    return;
+  }
+
+  connectBtn.disabled = true;
+  connectBtn.classList.add("loading");
+  connectBtn.textContent = "Connecting...";
+  setWritebookMessage("");
+
+  chrome.runtime.sendMessage({ type: "fetch-writebook-books", url: url }, (response) => {
+    connectBtn.disabled = false;
+    connectBtn.classList.remove("loading");
+    connectBtn.textContent = "Connect";
+
+    if (chrome.runtime.lastError) {
+      setWritebookMessage("Connection failed: " + chrome.runtime.lastError.message, "error");
+      return;
+    }
+
+    if (!response || !response.ok) {
+      setWritebookMessage(response?.error || "Could not connect to Writebook", "error");
+      updateWritebookStatus(false);
+      return;
+    }
+
+    // Populate book dropdown
+    writebookBaseUrl = url;
+    bookSelect.innerHTML = '<option value="">Select a book...</option>';
+    response.books.forEach(book => {
+      const opt = document.createElement("option");
+      opt.value = book.id;
+      opt.textContent = book.title;
+      bookSelect.appendChild(opt);
+    });
+    bookSelectRow.style.display = "flex";
+    setWritebookMessage(`Found ${response.books.length} book(s)`, "success");
+    updateWritebookStatus(true);
+
+    // Save URL
+    chrome.storage.sync.set({ writebookUrl: url });
+  });
+});
+
+// Save book selection
+bookSelect.addEventListener("change", () => {
+  const bookId = bookSelect.value;
+  const bookTitle = bookSelect.options[bookSelect.selectedIndex]?.textContent || "";
+  writebookConnected = !!bookId;
+
+  chrome.storage.sync.set({
+    writebookBookId: bookId,
+    writebookBookTitle: bookTitle
+  });
+
+  updateWritebookStatus(!!bookId, bookTitle);
+  updateWritebookButton();
+});
+
+// Publish to Writebook
+exportWritebook.addEventListener("click", () => {
+  const bookId = bookSelect.value;
+  if (!bookId || steps.length === 0) return;
+
+  const title = guideTitle.value || "How-To Guide";
+
+  // Build markdown content for the page
+  let markdown = `# ${title}\n\n`;
+  steps.forEach((s, i) => {
+    markdown += `## Step ${i + 1}\n\n`;
+    markdown += `**${s.description}**\n\n`;
+    if (s.notes) markdown += `${s.notes}\n\n`;
+    markdown += `---\n\n`;
+  });
+
+  exportWritebook.disabled = true;
+  exportWritebook.classList.add("publishing");
+  exportWritebook.textContent = "Publishing...";
+
+  chrome.runtime.sendMessage({
+    type: "publish-to-writebook",
+    baseUrl: writebookBaseUrl,
+    bookId: bookId,
+    title: title,
+    markdown: markdown
+  }, (response) => {
+    exportWritebook.disabled = false;
+    exportWritebook.classList.remove("publishing");
+    exportWritebook.textContent = "Add to Writebook";
+    updateWritebookButton();
+
+    if (chrome.runtime.lastError) {
+      showToast("Publish failed: " + chrome.runtime.lastError.message);
+      return;
+    }
+
+    if (response && response.ok) {
+      showToast("Published to Writebook!");
+      // Open the new page in a tab
+      if (response.url) {
+        chrome.tabs.create({ url: response.url, active: true });
+      }
+    } else {
+      showToast("Publish failed: " + (response?.error || "unknown error"));
+    }
+  });
+});
+
+function updateWritebookStatus(connected, bookTitle) {
+  if (connected && bookTitle) {
+    writebookStatus.textContent = bookTitle;
+    writebookStatus.className = "writebook-status connected";
+  } else if (connected) {
+    writebookStatus.textContent = "Connected";
+    writebookStatus.className = "writebook-status connected";
+  } else {
+    writebookStatus.textContent = "Not connected";
+    writebookStatus.className = "writebook-status disconnected";
+  }
+}
+
+function updateWritebookButton() {
+  const canPublish = writebookConnected && bookSelect.value && steps.length > 0;
+  exportWritebook.disabled = !canPublish;
+}
+
+function setWritebookMessage(text, type) {
+  writebookMessage.textContent = text;
+  writebookMessage.className = "writebook-message" + (type ? ` ${type}` : "");
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

@@ -37,9 +37,31 @@
     </div>
   </div>
 
+  <!-- Writebook Settings (collapsible) -->
+  <div class="writebook-section" id="writebookSection">
+    <button class="writebook-toggle" id="writebookToggle">
+      <span>Writebook</span>
+      <span class="writebook-status" id="writebookStatus"></span>
+      <span class="toggle-arrow" id="toggleArrow">&#9662;</span>
+    </button>
+    <div class="writebook-settings" id="writebookSettings" style="display:none;">
+      <div class="setting-row">
+        <input type="url" class="setting-input" id="writebookUrl" placeholder="https://your-writebook.example.com">
+        <button class="btn btn-connect" id="connectBtn">Connect</button>
+      </div>
+      <div class="setting-row" id="bookSelectRow" style="display:none;">
+        <select class="setting-select" id="bookSelect">
+          <option value="">Select a book...</option>
+        </select>
+      </div>
+      <div class="writebook-message" id="writebookMessage"></div>
+    </div>
+  </div>
+
   <div class="export-bar">
     <button class="btn btn-export" id="exportMd" disabled>Copy Markdown</button>
     <button class="btn btn-export" id="exportHtml" disabled>Download HTML</button>
+    <button class="btn btn-writebook" id="exportWritebook" disabled>Add to Writebook</button>
   </div>
 
   <div class="toast" id="toast"></div>
