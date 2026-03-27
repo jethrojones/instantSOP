@@ -66,7 +66,7 @@ You're ready to record.
 
 ### Exporting
 
-- **Copy Markdown**: Copies the full guide to your clipboard with embedded screenshots — paste into any markdown editor
+- **Download Markdown**: Downloads the guide as a `.md` file plus individual screenshot PNGs
 - **Download HTML**: Downloads a self-contained HTML file with all images embedded — open it in any browser or print to PDF
 
 ### Publishing to Writebook
@@ -81,6 +81,43 @@ If you use [Writebook](https://once.com/writebook) (Basecamp's free publishing t
 6. A new page is created in your book with all the step descriptions — the page opens automatically
 
 Your Writebook URL and book selection are saved so you don't have to configure it again.
+
+### Publishing to Basecamp
+
+If you use [Basecamp](https://basecamp.com), you can publish guides directly as documents in Docs & Files — with inline screenshots.
+
+**Prerequisites:**
+
+1. Install the Basecamp CLI:
+   ```bash
+   brew install basecamp/tap/basecamp
+   ```
+2. Authenticate:
+   ```bash
+   basecamp auth
+   ```
+
+**Set up the native messaging host:**
+
+Chrome extensions can't run shell commands directly, so InstantSOP uses a small bridge script. After installing the extension:
+
+1. Find your extension ID at `chrome://extensions` (enable Developer mode to see it)
+2. Run the install script:
+   ```bash
+   ./install-basecamp-host.sh <your-extension-id>
+   ```
+3. Reload the extension in `chrome://extensions`
+
+**Use it:**
+
+1. Click the **Basecamp** section in the side panel to expand settings
+2. Click **Load** to fetch your Basecamp accounts
+3. Select an account — projects load automatically
+4. Select a project
+5. After recording your steps, click **Add to Basecamp**
+6. A new document is created in the project's Docs & Files with all steps and inline screenshots — the document opens automatically
+
+Your account and project selections are saved so you don't have to configure it again.
 
 ## Publishing to the Chrome Web Store
 
@@ -119,10 +156,11 @@ For internal/team use, you can also skip the store entirely and distribute the z
 | `activeTab` | Capture screenshots of the page you're viewing |
 | `sidePanel` | Display the InstantSOP sidebar UI |
 | `scripting` | Inject the click detection script into web pages |
-| `storage` | Save your Writebook URL and book selection |
+| `storage` | Save your Writebook URL, book selection, and Basecamp settings |
+| `nativeMessaging` | Communicate with the Basecamp CLI bridge for publishing to Basecamp |
 | `host_permissions (all URLs)` | Required for Writebook integration — lets the extension communicate with your Writebook instance on any domain |
 
-All data stays local in your browser. Screenshots are stored in memory only during your session — nothing is uploaded anywhere unless you explicitly publish to Writebook.
+All data stays local in your browser. Screenshots are stored in memory only during your session — nothing is uploaded anywhere unless you explicitly publish to Writebook or Basecamp.
 
 ## License
 

@@ -471,6 +471,89 @@ body {
   cursor: wait;
 }
 
+/* ── Basecamp Section ─────────────────────────────────────────── */
+
+.basecamp-section {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.basecamp-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.basecamp-toggle:hover {
+  background: #F3F4F6;
+}
+
+.basecamp-status {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+
+.basecamp-status.connected {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.basecamp-status.disconnected {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.basecamp-settings {
+  padding: 0 16px 12px;
+}
+
+.basecamp-message {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.basecamp-message.error {
+  color: #DC2626;
+}
+
+.basecamp-message.success {
+  color: #065F46;
+}
+
+/* Basecamp export button */
+.btn-basecamp {
+  background: #1D6CE2;
+  color: white;
+}
+
+.btn-basecamp:hover {
+  background: #1558BF;
+}
+
+.btn-basecamp:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #1D6CE2;
+}
+
+.btn-basecamp.publishing {
+  opacity: 0.7;
+  cursor: wait;
+}
+
 /* ── Toast Notification ─────────────────────────────────────────── */
 
 .toast {

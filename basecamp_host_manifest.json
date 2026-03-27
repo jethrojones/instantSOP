@@ -1,0 +1,7 @@
+{
+  "name": "instantsop_basecamp",
+  "description": "InstantSOP — Basecamp CLI Bridge",
+  "path": "/Users/jethrojones/jethro/lifelab/projects/howto-generator/extension/basecamp_host.py",
+  "type": "stdio",
+  "allowed_origins": []
+}

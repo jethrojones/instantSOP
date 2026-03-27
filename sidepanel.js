@@ -94,6 +94,8 @@ function updateUI() {
 
   // Update Writebook button state if available
   if (typeof updateWritebookButton === "function") updateWritebookButton();
+  // Update Basecamp button state if available
+  if (typeof updateBasecampButton === "function") updateBasecampButton();
 }
 
 function renderStep(data, num) {
@@ -412,6 +414,203 @@ function updateWritebookButton() {
 function setWritebookMessage(text, type) {
   writebookMessage.textContent = text;
   writebookMessage.className = "writebook-message" + (type ? ` ${type}` : "");
+}
+
+// ── Basecamp Integration ────────────────────────────────────────────
+
+const basecampToggle = document.getElementById("basecampToggle");
+const basecampSettings = document.getElementById("basecampSettings");
+const basecampStatus = document.getElementById("basecampStatus");
+const basecampToggleArrow = document.getElementById("basecampToggleArrow");
+const basecampAccountSelect = document.getElementById("basecampAccountSelect");
+const basecampLoadAccountsBtn = document.getElementById("basecampLoadAccountsBtn");
+const basecampProjectRow = document.getElementById("basecampProjectRow");
+const basecampProjectSelect = document.getElementById("basecampProjectSelect");
+const basecampMessage = document.getElementById("basecampMessage");
+const exportBasecamp = document.getElementById("exportBasecamp");
+
+let basecampConnected = false;
+
+// Toggle settings visibility
+basecampToggle.addEventListener("click", () => {
+  const open = basecampSettings.style.display !== "none";
+  basecampSettings.style.display = open ? "none" : "block";
+  basecampToggleArrow.classList.toggle("open", !open);
+});
+
+// Load saved Basecamp settings
+chrome.storage.sync.get(["basecampAccountId", "basecampAccountName", "basecampProjectId", "basecampProjectName"], (data) => {
+  if (data.basecampAccountId) {
+    const opt = document.createElement("option");
+    opt.value = data.basecampAccountId;
+    opt.textContent = data.basecampAccountName || `Account #${data.basecampAccountId}`;
+    opt.selected = true;
+    basecampAccountSelect.appendChild(opt);
+  }
+  if (data.basecampProjectId) {
+    const opt = document.createElement("option");
+    opt.value = data.basecampProjectId;
+    opt.textContent = data.basecampProjectName || `Project #${data.basecampProjectId}`;
+    opt.selected = true;
+    basecampProjectSelect.appendChild(opt);
+    basecampProjectRow.style.display = "flex";
+    basecampConnected = true;
+    updateBasecampStatus(true, data.basecampProjectName);
+    updateBasecampButton();
+  }
+});
+
+// Load accounts from native host
+basecampLoadAccountsBtn.addEventListener("click", () => {
+  basecampLoadAccountsBtn.disabled = true;
+  basecampLoadAccountsBtn.classList.add("loading");
+  basecampLoadAccountsBtn.textContent = "Loading...";
+  setBasecampMessage("");
+
+  chrome.runtime.sendMessage({ type: "fetch-basecamp-accounts" }, (response) => {
+    basecampLoadAccountsBtn.disabled = false;
+    basecampLoadAccountsBtn.classList.remove("loading");
+    basecampLoadAccountsBtn.textContent = "Load";
+
+    if (chrome.runtime.lastError) {
+      setBasecampMessage("Failed: " + chrome.runtime.lastError.message, "error");
+      return;
+    }
+
+    if (!response || !response.ok) {
+      setBasecampMessage(response?.error || "Could not load accounts. Is the native host installed?", "error");
+      updateBasecampStatus(false);
+      return;
+    }
+
+    basecampAccountSelect.innerHTML = '<option value="">Select an account...</option>';
+    response.accounts.forEach(acct => {
+      const opt = document.createElement("option");
+      opt.value = acct.id;
+      opt.textContent = acct.name || `Account ${acct.id}`;
+      basecampAccountSelect.appendChild(opt);
+    });
+    setBasecampMessage(`Found ${response.accounts.length} account(s)`, "success");
+  });
+});
+
+// Account selection -> load projects
+basecampAccountSelect.addEventListener("change", () => {
+  const accountId = basecampAccountSelect.value;
+  const accountName = basecampAccountSelect.options[basecampAccountSelect.selectedIndex]?.textContent || "";
+
+  if (!accountId) {
+    basecampProjectRow.style.display = "none";
+    basecampConnected = false;
+    updateBasecampStatus(false);
+    updateBasecampButton();
+    return;
+  }
+
+  chrome.storage.sync.set({ basecampAccountId: accountId, basecampAccountName: accountName });
+  setBasecampMessage("Loading projects...");
+
+  chrome.runtime.sendMessage({ type: "fetch-basecamp-projects", accountId: accountId }, (response) => {
+    if (chrome.runtime.lastError) {
+      setBasecampMessage("Failed: " + chrome.runtime.lastError.message, "error");
+      return;
+    }
+
+    if (!response || !response.ok) {
+      setBasecampMessage(response?.error || "Could not load projects", "error");
+      return;
+    }
+
+    basecampProjectSelect.innerHTML = '<option value="">Select a project...</option>';
+    response.projects.forEach(proj => {
+      const opt = document.createElement("option");
+      opt.value = proj.id;
+      opt.textContent = proj.name || `Project ${proj.id}`;
+      basecampProjectSelect.appendChild(opt);
+    });
+    basecampProjectRow.style.display = "flex";
+    setBasecampMessage(`Found ${response.projects.length} project(s)`, "success");
+  });
+});
+
+// Project selection
+basecampProjectSelect.addEventListener("change", () => {
+  const projectId = basecampProjectSelect.value;
+  const projectName = basecampProjectSelect.options[basecampProjectSelect.selectedIndex]?.textContent || "";
+  basecampConnected = !!projectId;
+
+  chrome.storage.sync.set({ basecampProjectId: projectId, basecampProjectName: projectName });
+  updateBasecampStatus(!!projectId, projectName);
+  updateBasecampButton();
+});
+
+// Publish to Basecamp
+exportBasecamp.addEventListener("click", () => {
+  const accountId = basecampAccountSelect.value;
+  const projectId = basecampProjectSelect.value;
+  if (!accountId || !projectId || steps.length === 0) return;
+
+  const title = guideTitle.value || "How-To Guide";
+
+  const stepsData = steps.map(s => ({
+    description: s.description,
+    notes: s.notes || "",
+    screenshot_base64: s.screenshot || ""
+  }));
+
+  exportBasecamp.disabled = true;
+  exportBasecamp.classList.add("publishing");
+  exportBasecamp.textContent = "Publishing...";
+
+  chrome.runtime.sendMessage({
+    type: "publish-to-basecamp",
+    accountId: accountId,
+    projectId: projectId,
+    title: title,
+    steps: stepsData
+  }, (response) => {
+    exportBasecamp.disabled = false;
+    exportBasecamp.classList.remove("publishing");
+    exportBasecamp.textContent = "Add to Basecamp";
+    updateBasecampButton();
+
+    if (chrome.runtime.lastError) {
+      showToast("Publish failed: " + chrome.runtime.lastError.message);
+      return;
+    }
+
+    if (response && response.ok) {
+      showToast("Published to Basecamp!");
+      if (response.url) {
+        chrome.tabs.create({ url: response.url, active: true });
+      }
+    } else {
+      showToast("Publish failed: " + (response?.error || "unknown error"));
+    }
+  });
+});
+
+function updateBasecampStatus(connected, projectName) {
+  if (connected && projectName) {
+    basecampStatus.textContent = projectName;
+    basecampStatus.className = "basecamp-status connected";
+  } else if (connected) {
+    basecampStatus.textContent = "Connected";
+    basecampStatus.className = "basecamp-status connected";
+  } else {
+    basecampStatus.textContent = "Not connected";
+    basecampStatus.className = "basecamp-status disconnected";
+  }
+}
+
+function updateBasecampButton() {
+  const canPublish = basecampConnected && basecampProjectSelect.value && steps.length > 0;
+  exportBasecamp.disabled = !canPublish;
+}
+
+function setBasecampMessage(text, type) {
+  basecampMessage.textContent = text;
+  basecampMessage.className = "basecamp-message" + (type ? ` ${type}` : "");
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────

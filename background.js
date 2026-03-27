@@ -76,6 +76,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handlePublishPage(baseUrl, bookId, bookSlug, title, markdown, steps).then(sendResponse);
     return true; // async
   }
+
+  // ── Basecamp: List accounts ───────────────────────────────────
+
+  if (msg.type === "fetch-basecamp-accounts") {
+    sendNativeBasecampMessage({ type: "list-accounts" }).then(sendResponse);
+    return true;
+  }
+
+  // ── Basecamp: List projects ───────────────────────────────────
+
+  if (msg.type === "fetch-basecamp-projects") {
+    sendNativeBasecampMessage({ type: "list-projects", accountId: msg.accountId }).then(sendResponse);
+    return true;
+  }
+
+  // ── Basecamp: Publish document ────────────────────────────────
+
+  if (msg.type === "publish-to-basecamp") {
+    sendNativeBasecampMessage({
+      type: "publish",
+      accountId: msg.accountId,
+      projectId: msg.projectId,
+      title: msg.title,
+      steps: msg.steps
+    }).then(sendResponse);
+    return true;
+  }
 });
 
 // ── Recording Helpers ──────────────────────────────────────────────
@@ -221,6 +248,24 @@ async function handlePublishPage(baseUrl, bookId, bookSlug, title, markdown, ste
   } catch (err) {
     return { ok: false, error: err.message };
   }
+}
+
+// ── Basecamp Native Messaging ──────────────────────────────────────
+
+function sendNativeBasecampMessage(msg) {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendNativeMessage("instantsop_basecamp", msg, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({ ok: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve(response || { ok: false, error: "No response from native host" });
+        }
+      });
+    } catch (err) {
+      resolve({ ok: false, error: err.message });
+    }
+  });
 }
 
 // ── Functions injected into Writebook tab context ──────────────────

@@ -58,10 +58,34 @@
     </div>
   </div>
 
+  <!-- Basecamp Settings (collapsible) -->
+  <div class="basecamp-section" id="basecampSection">
+    <button class="basecamp-toggle" id="basecampToggle">
+      <span>Basecamp</span>
+      <span class="basecamp-status" id="basecampStatus"></span>
+      <span class="toggle-arrow" id="basecampToggleArrow">&#9662;</span>
+    </button>
+    <div class="basecamp-settings" id="basecampSettings" style="display:none;">
+      <div class="setting-row" id="basecampAccountRow">
+        <select class="setting-select" id="basecampAccountSelect">
+          <option value="">Select an account...</option>
+        </select>
+        <button class="btn btn-connect" id="basecampLoadAccountsBtn">Load</button>
+      </div>
+      <div class="setting-row" id="basecampProjectRow" style="display:none;">
+        <select class="setting-select" id="basecampProjectSelect">
+          <option value="">Select a project...</option>
+        </select>
+      </div>
+      <div class="basecamp-message" id="basecampMessage"></div>
+    </div>
+  </div>
+
   <div class="export-bar">
     <button class="btn btn-export" id="exportMd" disabled>Download MD</button>
     <button class="btn btn-export" id="exportHtml" disabled>Download HTML</button>
     <button class="btn btn-writebook" id="exportWritebook" disabled>Add to Writebook</button>
+    <button class="btn btn-basecamp" id="exportBasecamp" disabled>Add to Basecamp</button>
   </div>
 
   <div class="toast" id="toast"></div>
