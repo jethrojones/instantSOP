@@ -22,6 +22,40 @@ const exportHtml = document.getElementById("exportHtml");
 const guideTitle = document.getElementById("guideTitle");
 const toast = document.getElementById("toast");
 
+// Load saved steps and recording state on startup
+chrome.storage.local.get(["steps", "recording", "recordingStartTime", "guideTitle"], (data) => {
+  if (data.steps) {
+    steps.push(...data.steps);
+  }
+  if (data.recording !== undefined) {
+    recording = data.recording;
+  }
+  if (data.recordingStartTime) {
+    recordingStartTime = data.recordingStartTime;
+  }
+  if (data.guideTitle) {
+    guideTitle.value = data.guideTitle;
+  }
+
+  rerenderAllSteps();
+  updateUI();
+
+  if (recording) {
+    recordBtn.classList.add("recording");
+    recordIcon.textContent = "\u25A0"; // stop square
+    recordLabel.textContent = "Stop Recording";
+  } else {
+    recordBtn.classList.remove("recording");
+    recordIcon.textContent = "\u25CF"; // circle
+    recordLabel.textContent = "Start Recording";
+  }
+});
+
+// Save guideTitle on change
+guideTitle.addEventListener("input", () => {
+  chrome.storage.local.set({ guideTitle: guideTitle.value });
+});
+
 // ── Recording Toggle ────────────────────────────────────────────────
 
 recordBtn.addEventListener("click", () => {
@@ -45,20 +79,24 @@ function startRecording() {
     }
     recording = true;
     recordingStartTime = Date.now();
-    recordBtn.classList.add("recording");
-    recordIcon.textContent = "\u25A0"; // stop square
-    recordLabel.textContent = "Stop Recording";
-    showToast("Recording started — click on the page");
+    chrome.storage.local.set({ recording, recordingStartTime }, () => {
+      recordBtn.classList.add("recording");
+      recordIcon.textContent = "\u25A0"; // stop square
+      recordLabel.textContent = "Stop Recording";
+      showToast("Recording started — click on the page");
+    });
   });
 }
 
 function stopRecording() {
   chrome.runtime.sendMessage({ type: "stop-recording" }, () => {
     recording = false;
-    recordBtn.classList.remove("recording");
-    recordIcon.textContent = "\u25CF"; // circle
-    recordLabel.textContent = "Start Recording";
-    showToast(`Recording stopped — ${steps.length} steps captured`);
+    chrome.storage.local.set({ recording }, () => {
+      recordBtn.classList.remove("recording");
+      recordIcon.textContent = "\u25CF"; // circle
+      recordLabel.textContent = "Start Recording";
+      showToast(`Recording stopped — ${steps.length} steps captured`);
+    });
   });
 }
 
@@ -72,11 +110,13 @@ chrome.runtime.onMessage.addListener((msg) => {
 
 function addStep(data) {
   steps.push(data);
-  updateUI();
-  renderStep(data, steps.length);
+  chrome.storage.local.set({ steps }, () => {
+    updateUI();
+    renderStep(data, steps.length);
 
-  // Scroll to bottom
-  stepsList.scrollTop = stepsList.scrollHeight;
+    // Scroll to bottom
+    stepsList.scrollTop = stepsList.scrollHeight;
+  });
 }
 
 function updateUI() {
@@ -123,17 +163,32 @@ function renderStep(data, num) {
   card.querySelector(".step-delete").addEventListener("click", () => {
     const idx = parseInt(card.dataset.index);
     steps.splice(idx, 1);
-    rerenderAllSteps();
+    chrome.storage.local.set({ steps }, () => {
+      rerenderAllSteps();
+    });
   });
 
   // Auto-resize notes textarea
   const textarea = card.querySelector(".step-notes");
+  textarea.value = data.notes || "";
+
+  // Set initial height for existing notes
+  if (data.notes) {
+    setTimeout(() => {
+      textarea.style.height = "auto";
+      textarea.style.height = textarea.scrollHeight + "px";
+    }, 0);
+  }
+
   textarea.addEventListener("input", () => {
     textarea.style.height = "auto";
     textarea.style.height = textarea.scrollHeight + "px";
     // Save note to step data
     const idx = parseInt(card.dataset.index);
-    if (steps[idx]) steps[idx].notes = textarea.value;
+    if (steps[idx]) {
+      steps[idx].notes = textarea.value;
+      chrome.storage.local.set({ steps });
+    }
   });
 
   stepsList.appendChild(card);
@@ -151,8 +206,10 @@ function rerenderAllSteps() {
 clearBtn.addEventListener("click", () => {
   if (steps.length === 0) return;
   steps.length = 0;
-  rerenderAllSteps();
-  showToast("All steps cleared");
+  chrome.storage.local.set({ steps }, () => {
+    rerenderAllSteps();
+    showToast("All steps cleared");
+  });
 });
 
 // ── Export: Markdown ────────────────────────────────────────────────

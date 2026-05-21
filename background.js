@@ -3,8 +3,6 @@
  * Handles screenshot capture and message routing between content script and side panel.
  */
 
-let recording = false;
-
 // Open side panel when extension icon is clicked
 chrome.action.onClicked.addListener(async (tab) => {
   await chrome.sidePanel.open({ tabId: tab.id });
@@ -43,22 +41,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Side panel requests to start recording
   if (msg.type === "start-recording") {
-    recording = true;
-    handleStartRecording().then(sendResponse);
+    chrome.storage.local.set({ recording: true }, () => {
+      handleStartRecording().then(sendResponse);
+    });
     return true; // async sendResponse
   }
 
   // Side panel requests to stop recording
   if (msg.type === "stop-recording") {
-    recording = false;
-    handleStopRecording().then(sendResponse);
+    chrome.storage.local.set({ recording: false }, () => {
+      handleStopRecording().then(sendResponse);
+    });
     return true; // async sendResponse
   }
 
   // Side panel asks for current state
   if (msg.type === "get-recording-state") {
-    sendResponse({ recording });
-    return false;
+    chrome.storage.local.get("recording", (data) => {
+      sendResponse({ recording: !!data.recording });
+    });
+    return true;
   }
 
   // ── Writebook: Fetch books list ─────────────────────────────────

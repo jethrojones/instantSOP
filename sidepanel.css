@@ -12,7 +12,25 @@
   --text: #1E1E2E;
   --text-muted: #6B7280;
   --border: #E5E7EB;
-  --radius: 10px;
+  --radius: 12px;
+  --header-bg: #F9FAFB;
+  --hover-bg: #F3F4F6;
+  --notes-focus: #F0F9FF;
+  --scrollbar-thumb: #D1D5DB;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0D0E12;
+    --card-bg: #16171F;
+    --text: #F5F6F8;
+    --text-muted: #9CA3AF;
+    --border: #262733;
+    --header-bg: #1B1C24;
+    --hover-bg: #222430;
+    --notes-focus: #1E293B;
+    --scrollbar-thumb: #3E4154;
+  }
 }
 
 * {
@@ -22,7 +40,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 13px;
@@ -99,6 +117,10 @@ body {
   gap: 6px;
 }
 
+.btn:active {
+  transform: scale(0.97);
+}
+
 .btn-record {
   background: var(--teal);
   color: var(--purple-dark);
@@ -132,7 +154,7 @@ body {
 }
 
 .btn-secondary:hover {
-  background: #F3F4F6;
+  background: var(--hover-bg);
 }
 
 .btn-secondary:disabled {
@@ -171,11 +193,25 @@ body {
   border-radius: var(--radius);
   margin-bottom: 10px;
   overflow: hidden;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: step-slide-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .step-card:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+  border-color: var(--purple-light);
+}
+
+@keyframes step-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .step-header {
@@ -184,7 +220,7 @@ body {
   gap: 8px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
-  background: #F9FAFB;
+  background: var(--header-bg);
 }
 
 .step-number {
@@ -243,7 +279,7 @@ body {
 }
 
 .step-notes:focus {
-  background: #F0F9FF;
+  background: var(--notes-focus);
 }
 
 .step-delete {
@@ -339,7 +375,7 @@ body {
 }
 
 .writebook-toggle:hover {
-  background: #F3F4F6;
+  background: var(--hover-bg);
 }
 
 .writebook-status {
@@ -494,7 +530,7 @@ body {
 }
 
 .basecamp-toggle:hover {
-  background: #F3F4F6;
+  background: var(--hover-bg);
 }
 
 .basecamp-status {
@@ -589,7 +625,7 @@ body {
 }
 
 .steps::-webkit-scrollbar-thumb {
-  background: #D1D5DB;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
